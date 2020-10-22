@@ -17,6 +17,8 @@ from pymodbus.transaction import ModbusAsciiFramer, ModbusRtuFramer
 from pymodbus.transaction import ModbusTlsFramer
 from pymodbus.client.common import ModbusClientMixin
 
+import RPi.GPIO as GPIO
+
 # --------------------------------------------------------------------------- #
 # Logging
 # --------------------------------------------------------------------------- #
@@ -540,6 +542,9 @@ class ModbusSerialClient(BaseModbusClient):
         :param strict:  Use Inter char timeout for baudrates <= 19200 (adhere
         to modbus standards)
         :param handle_local_echo: Handle local echo of the USB-to-RS485 adaptor
+        :param driver_pin: Use this GPIO-pin to enable the RS485 driver (for direct
+        connections on Raspberry)
+        :param gpio_mode: Specify the GPIO board mode (GPIO.BOARD or GPIO.BCM). Default is GPIO.BOARD.
         """
         self.method = method
         self.socket = None
@@ -555,6 +560,8 @@ class ModbusSerialClient(BaseModbusClient):
         self._strict = kwargs.get("strict", True)
         self.last_frame_end = None
         self.handle_local_echo = kwargs.get("handle_local_echo", False)
+        self.driver_pin = kwargs.get('driver_pin', False)
+        self.gpio_mode = kwargs.get('gpio_mode', GPIO.BOARD)
         if self.method == "rtu":
             if self.baudrate > 19200:
                 self.silent_interval = 1.75 / 1000  # ms
@@ -601,6 +608,9 @@ class ModbusSerialClient(BaseModbusClient):
                 if self._strict:
                     self.socket.interCharTimeout = self.inter_char_timeout
                 self.last_frame_end = None
+            if self.driver_pin:
+                GPIO.setmode(self.gpio_mode)
+                GPIO.setup(self.driver_pin, GPIO.OUT, initial=GPIO.LOW)
         except serial.SerialException as msg:
             _logger.error(msg)
             self.close()
@@ -612,6 +622,8 @@ class ModbusSerialClient(BaseModbusClient):
         if self.socket:
             self.socket.close()
         self.socket = None
+        if self.driver_pin:
+            GPIO.cleanup()
 
     def _in_waiting(self):
         in_waiting = ("in_waiting" if hasattr(
@@ -647,7 +659,15 @@ class ModbusSerialClient(BaseModbusClient):
             except NotImplementedError:
                 pass
 
+            sleep = (10/self.baudrate)*len(request)
+            if self.driver_pin:
+                _logger.debug("Pulling {} to HIGH".format(self.driver_pin))
+                GPIO.output(self.driver_pin, GPIO.HIGH)
             size = self.socket.write(request)
+            if self.driver_pin:
+                time.sleep(sleep)
+                _logger.debug("Pulling {} to LOW".format(self.driver_pin))
+                GPIO.output(self.driver_pin, GPIO.LOW)
             return size
         return 0
 
