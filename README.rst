@@ -1,3 +1,16 @@
+-----------------------------------------------------------
+Fork Note
+-----------------------------------------------------------
+
+This fork was created to support Driver-Enable for Modbus-RTU (sync).
+It adds the options `driver_pin` and `gpio_mode` to ModbusSerialClient.
+`driver_pin` is the GPIO pin of e.g. a Raspberry PI that directly
+enables/disables the RS485 driver. This enable pin is e.g. required by MAX485.
+With `gpio_mode` the mapping of `driver_pin` is switched. The default is RPi.GPIO.BOARD.
+
+Note that this fork uses RPi.GPIO so have a SoC that is compatible to this
+library.
+
 ================================
 PyModbus - A Python Modbus Stack
 ================================
